@@ -39,10 +39,13 @@ struct just_sender {
   }
 };
 
-template <typename... Ts>
-auto just(Ts&&... values) {
-  return just_sender<std::decay_t<Ts>...>{
-      std::tuple<std::decay_t<Ts>...>{std::forward<Ts>(values)...}};
-}
+struct just_t {
+  template <typename... Ts>
+  auto operator()(Ts&&... values) {
+    return just_sender<std::decay_t<Ts>...>{
+        std::tuple<std::decay_t<Ts>...>{std::forward<Ts>(values)...}};
+  }
+};
+inline constexpr just_t just{};
 
 }  // namespace miniexec

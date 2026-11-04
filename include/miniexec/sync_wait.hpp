@@ -63,26 +63,29 @@ struct sync_wait_receiver {
   sync_wait_env get_env() const noexcept { return sync_wait_env{state->token}; }
 };
 
-template <sender S>
-auto sync_wait(S&& s) {
-  using value_t = typename std::remove_cvref_t<S>::value_t;
+struct sync_wait_t {
+  template <sender S>
+  auto operator()(S&& s) {
+    using value_t = typename std::remove_cvref_t<S>::value_t;
 
-  sync_wait_state<value_t> state;
-  std::stop_source source;
-  state.token = source.get_token();
+    sync_wait_state<value_t> state;
+    std::stop_source source;
+    state.token = source.get_token();
 
-  auto op = connect(std::forward<S>(s),
-                    sync_wait_receiver<sync_wait_state<value_t>>{&state});
-  start(op);
+    auto op = connect(std::forward<S>(s),
+                      sync_wait_receiver<sync_wait_state<value_t>>{&state});
+    start(op);
 
-  std::unique_lock lock(state.mutex);
-  state.cv.wait(lock, [&] { return state.done; });
+    std::unique_lock lock(state.mutex);
+    state.cv.wait(lock, [&] { return state.done; });
 
-  if (state.err) std::rethrow_exception(state.err);
+    if (state.err) std::rethrow_exception(state.err);
 
-  if (state.stopped) return std::optional<value_t>{};
+    if (state.stopped) return std::optional<value_t>{};
 
-  return std::move(state.value);
-}
+    return std::move(state.value);
+  }
+};
+inline constexpr sync_wait_t sync_wait{};
 
 }  // namespace miniexec
