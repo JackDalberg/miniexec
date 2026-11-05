@@ -1,5 +1,6 @@
 #pragma once
 
+#include <exception>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -47,5 +48,54 @@ struct just_t {
   }
 };
 inline constexpr just_t just{};
+
+template <typename Receiver>
+struct just_error_operator {
+  std::exception_ptr err;
+  Receiver receiver;
+
+  void start() noexcept { receiver.set_error(std::move(err)); }
+};
+
+struct just_error_sender {
+  using value_t = std::tuple<>;
+
+  std::exception_ptr err;
+
+  template <typename Receiver>
+  auto connect(Receiver&& receiver) &&;
+
+  template <typename Receiver>
+  auto connect(Receiver&& receiver) const&;
+};
+
+struct just_error_t {
+  auto operator()(std::exception_ptr err) const {
+    return just_error_sender{std::move(err)};
+  }
+};
+inline constexpr just_error_t just_error{};
+
+template <typename Receiver>
+struct just_stopped_operator {
+  Receiver receiver;
+
+  void start() noexcept { receiver.set_stopped(); }
+};
+
+struct just_stopped_sender {
+  using value_t = std::tuple<>;
+
+  template <typename Receiver>
+  auto connect(Receiver&& receiver) &&;
+
+  template <typename Receiver>
+  auto connect(Receiver&& receiver) const&;
+};
+
+struct just_stopped_t {
+  auto operator()() const { return just_stopped_sender{}; }
+};
+inline constexpr just_stopped_t just_stopped{};
 
 }  // namespace miniexec
