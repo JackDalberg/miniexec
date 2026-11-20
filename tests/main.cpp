@@ -6,7 +6,7 @@
 #include <tuple>
 #include <type_traits>
 
-#include "miniexec/execution.hpp"
+#include "../include/miniexec/execution.hpp"
 
 using namespace miniexec;
 

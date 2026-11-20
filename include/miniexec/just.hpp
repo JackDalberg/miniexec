@@ -5,6 +5,8 @@
 #include <type_traits>
 #include <utility>
 
+#include "sender.hpp"
+
 namespace miniexec {
 
 template <typename Receiver, typename... Ts>
@@ -24,6 +26,7 @@ struct just_operator {
 template <typename... Ts>
 struct just_sender {
   using value_t = std::tuple<Ts...>;
+  using sender_concept = sender_tag;
 
   std::tuple<Ts...> values;
 
@@ -42,11 +45,12 @@ struct just_sender {
 
 struct just_t {
   template <typename... Ts>
-  auto operator()(Ts&&... values) {
+  auto operator()(Ts&&... values) const {
     return just_sender<std::decay_t<Ts>...>{
         std::tuple<std::decay_t<Ts>...>{std::forward<Ts>(values)...}};
   }
 };
+
 inline constexpr just_t just{};
 
 template <typename Receiver>
@@ -59,14 +63,21 @@ struct just_error_operator {
 
 struct just_error_sender {
   using value_t = std::tuple<>;
+  using sender_concept = sender_tag;
 
   std::exception_ptr err;
 
   template <typename Receiver>
-  auto connect(Receiver&& receiver) &&;
+  auto connect(Receiver&& receiver) && {
+    return just_error_operator<std::decay_t<Receiver>>{
+        std::move(err), std::forward<Receiver>(receiver)};
+  }
 
   template <typename Receiver>
-  auto connect(Receiver&& receiver) const&;
+  auto connect(Receiver&& receiver) const& {
+    return just_error_operator<std::decay_t<Receiver>>{
+        err, std::forward<Receiver>(receiver)};
+  }
 };
 
 struct just_error_t {
@@ -85,17 +96,25 @@ struct just_stopped_operator {
 
 struct just_stopped_sender {
   using value_t = std::tuple<>;
+  using sender_concept = sender_tag;
 
   template <typename Receiver>
-  auto connect(Receiver&& receiver) &&;
+  auto connect(Receiver&& receiver) && {
+    return just_stopped_operator<std::decay_t<Receiver>>{
+        std::forward<Receiver>(receiver)};
+  }
 
   template <typename Receiver>
-  auto connect(Receiver&& receiver) const&;
+  auto connect(Receiver&& receiver) const& {
+    return just_stopped_operator<std::decay_t<Receiver>>{
+        std::forward<Receiver>(receiver)};
+  }
 };
 
 struct just_stopped_t {
   auto operator()() const { return just_stopped_sender{}; }
 };
+
 inline constexpr just_stopped_t just_stopped{};
 
 }  // namespace miniexec

@@ -1,30 +1,37 @@
 #pragma once
 
-#include <condition_variable>
 #include <exception>
 #include <mutex>
 #include <optional>
 #include <stop_token>
 #include <utility>
 
-#include "core.hpp"
+#include "operation.hpp"
+#include "run_loop.hpp"
+#include "sender.hpp"
 
 namespace miniexec {
 
 struct sync_wait_env {
+  run_loop* loop;
   std::stop_token token;
 
   std::stop_token get_stop_token() const noexcept { return token; }
+
+  run_loop::scheduler get_scheduler() const noexcept {
+    return loop->get_scheduler();
+  }
+  run_loop::scheduler get_start_scheduler() const noexcept {
+    return loop->get_scheduler();
+  }
 };
 
 template <typename Value>
 struct sync_wait_state {
-  std::mutex mutex;
-  std::condition_variable cv;
+  run_loop loop;
   std::optional<Value> value;
   std::exception_ptr err;
   bool stopped = false;
-  bool done = false;
   std::stop_token token;
 };
 
@@ -34,37 +41,31 @@ struct sync_wait_receiver {
 
   template <typename... As>
   void set_value(As&&... as) noexcept {
-    {
-      std::lock_guard lock(state->mutex);
+    try {
       state->value.emplace(std::forward<As>(as)...);
-      state->done = true;
+    } catch (...) {
+      state->err = std::current_exception();
     }
-    state->cv.notify_one();
+    state->loop.finish();
   }
 
   void set_error(std::exception_ptr e) noexcept {
-    {
-      std::lock_guard lock(state->mutex);
-      state->err = std::move(e);
-      state->done = true;
-    }
-    state->cv.notify_one();
+    state->err = std::move(e);
+    state->loop.finish();
   }
 
   void set_stopped() noexcept {
-    {
-      std::lock_guard lock(state->mutex);
-      state->stopped = true;
-      state->done = true;
-    }
-    state->cv.notify_one();
+    state->stopped = true;
+    state->loop.finish();
   }
 
-  sync_wait_env get_env() const noexcept { return sync_wait_env{state->token}; }
+  sync_wait_env get_env() const noexcept {
+    return sync_wait_env{&state->loop, state->token};
+  }
 };
 
 struct sync_wait_t {
-  template <sender S>
+  template <detail::value_sender S>
   auto operator()(S&& s) {
     using value_t = typename std::remove_cvref_t<S>::value_t;
 
@@ -75,9 +76,7 @@ struct sync_wait_t {
     auto op = connect(std::forward<S>(s),
                       sync_wait_receiver<sync_wait_state<value_t>>{&state});
     start(op);
-
-    std::unique_lock lock(state.mutex);
-    state.cv.wait(lock, [&] { return state.done; });
+    state.loop.run();
 
     if (state.err) std::rethrow_exception(state.err);
 
@@ -86,6 +85,7 @@ struct sync_wait_t {
     return std::move(state.value);
   }
 };
+
 inline constexpr sync_wait_t sync_wait{};
 
 }  // namespace miniexec

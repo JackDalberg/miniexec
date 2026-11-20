@@ -1,5 +1,6 @@
 #pragma once
 
+#include <concepts>
 #include <condition_variable>
 #include <cstddef>
 #include <exception>
@@ -13,6 +14,9 @@
 #include <utility>
 #include <vector>
 
+#include "env.hpp"
+#include "sender.hpp"
+
 namespace miniexec {
 
 class thread_pool {
@@ -20,8 +24,8 @@ class thread_pool {
   using task_t = std::move_only_function<void() noexcept>;
 
   thread_pool() {
-    auto count = std::thread::hardware_concurrency();
-    if (count == 0) count = 1;
+    auto hw = std::thread::hardware_concurrency();
+    auto count = hw > 1 ? hw - 1 : 1;
 
     workers_.reserve(count);
     for (size_t i = 0; i < count; ++i) {
@@ -103,6 +107,7 @@ struct schedule_operation {
 
 struct schedule_sender {
   using value_t = std::tuple<>;
+  using sender_concept = sender_tag;
 
   thread_pool* pool;
 
@@ -113,27 +118,73 @@ struct schedule_sender {
   }
 };
 
+struct schedule_t {
+  template <typename S>
+    requires requires(S&& s) { std::forward<S>(s).schedule(); }
+  decltype(auto) operator()(S&& s) const {
+    return std::forward<S>(s).schedule();
+  }
+};
+
+inline constexpr schedule_t schedule{};
+
+struct scheduler_tag {};
+
+enum class forward_progress_guarantee {
+  concurrent,
+  parallel,
+  weakly_parallel,
+};
+
+struct get_forward_progress_guarantee_t {
+  template <typename Sch>
+    requires requires(const Sch& sch) { sch.get_forward_progress_guaratee(); }
+  auto operator()(const Sch& sch) const {
+    return sch.get_forward_progress_guaratee();
+  }
+};
+
+inline constexpr get_forward_progress_guarantee_t
+    get_forward_progress_guarantee{};
+
+template <typename Sch>
+concept scheduler =
+    requires { typename std::remove_cvref_t<Sch>::scheduler_concept; } &&
+    std::derived_from<typename std::remove_cvref_t<Sch>::scheduler_concept,
+                      scheduler_tag> &&
+    std::copyable<std::remove_cvref_t<Sch>> &&
+    std::equality_comparable<std::remove_cvref_t<Sch>> && requires(Sch&& sch) {
+      { schedule(std::forward<Sch>(sch)) } -> sender;
+      {
+        get_forward_progress_guarantee(sch)
+      } -> std::same_as<forward_progress_guarantee>;
+    };
+
 class parallel_scheduler {
  public:
+  using scheduler_concept = scheduler_tag;
+
   explicit parallel_scheduler(thread_pool* pool) : pool_(pool) {}
 
   auto schedule() const { return schedule_sender{pool_}; }
+
+  forward_progress_guarantee get_forward_progress_guarantee() const noexcept {
+    return forward_progress_guarantee::concurrent;
+  }
+
+  friend bool operator==(const parallel_scheduler&,
+                         const parallel_scheduler&) = default;
 
  private:
   thread_pool* pool_;
 };
 
-struct schedule_t {
-  template <typename S>
-  auto operator()(S&& s) const -> decltype(std::forward<S>(s).schedule()) {
-    return std::forward<S>(s).schedule();
-  }
-};
-inline constexpr schedule_t schedule{};
-
 inline parallel_scheduler get_parallel_scheduler() {
   static thread_pool* pool = new thread_pool;
   return parallel_scheduler{pool};
 }
+
+template <typename Sch>
+using schedule_result_t = decltype(schedule(std::declval<Sch>()));
 
 }  // namespace miniexec

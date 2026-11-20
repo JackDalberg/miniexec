@@ -9,7 +9,9 @@
 #include <type_traits>
 #include <utility>
 
-#include "core.hpp"
+#include "closure.hpp"
+#include "operation.hpp"
+#include "sender.hpp"
 
 namespace miniexec {
 
@@ -38,7 +40,7 @@ struct let_value_receiver {
 
   void set_stopped() noexcept { parent->receiver.set_stopped(); }
 
-  auto get_env() const noexcept { return parent->receiver.get_env(); }
+  auto get_env() const noexcept { return miniexec::get_env(parent->receiver); }
 };
 
 template <typename Receiver>
@@ -56,7 +58,7 @@ struct let_value_successor_receiver {
 
   void set_stopped() noexcept { receiver->set_stopped(); }
 
-  auto get_env() const noexcept { return receiver->get_env(); }
+  auto get_env() const noexcept { return miniexec::get_env(receiver); }
 };
 
 template <typename Pred, typename F, typename Receiver>
@@ -76,7 +78,8 @@ struct let_value_operation {
   bool active = false;
 
   let_value_operation(Pred pred_, F f_, Receiver r)
-      : pred_op(std::move(pred_).connect(predecessor_receiver_t{this})),
+      : pred_op(
+            miniexec::connect(std::move(pred_), predecessor_receiver_t{this})),
         f(std::move(f_)),
         receiver(std::move(r)) {}
 
@@ -92,10 +95,11 @@ struct let_value_operation {
     try {
       auto successor_sender = std::invoke(f, std::forward<As>(as)...);
       // Placement new via ::new means no allocations?
-      auto* op = ::new (static_cast<void*>(storage)) successor_op_t(
-          std::move(successor_sender).connect(successor_receiver_t{&receiver}));
+      auto* op =
+          ::new (static_cast<void*>(storage)) successor_op_t(miniexec::connect(
+              std::move(successor_sender), successor_receiver_t{&receiver}));
       active = true;
-      op->start();
+      miniexec::start(op);
     } catch (...) {
       receiver.set_error(std::current_exception());
     }
@@ -105,6 +109,7 @@ struct let_value_operation {
 template <typename Pred, typename F>
 struct let_value_sender {
   using value_t = typename let_value_result<F, typename Pred::value_t>::value_t;
+  using sender_concept = sender_tag;
 
   Pred pred;
   F f;
@@ -128,13 +133,13 @@ struct let_value_closure : sender_adapter_closure<let_value_closure<F>> {
 
   explicit let_value_closure(F f_) : f(std::move(f_)) {}
 
-  template <sender S>
+  template <detail::value_sender S>
   auto operator()(S&& s) && -> let_value_sender<std::decay_t<S>, F> {
     return let_value_sender<std::decay_t<S>, F>{std::forward<S>(s),
                                                 std::move(f)};
   }
 
-  template <sender S>
+  template <detail::value_sender S>
   auto operator()(S&& s) const& -> let_value_sender<std::decay_t<S>, F> {
     return let_value_sender<std::decay_t<S>, F>{std::forward<S>(s), f};
   }

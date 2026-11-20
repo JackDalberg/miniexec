@@ -6,7 +6,9 @@
 #include <type_traits>
 #include <utility>
 
-#include "core.hpp"
+#include "closure.hpp"
+#include "operation.hpp"
+#include "sender.hpp"
 
 namespace miniexec {
 
@@ -57,7 +59,7 @@ struct then_receiver {
 
   void set_stopped() noexcept { parent->receiver.set_stopped(); }
 
-  auto get_env() const noexcept { return parent->receiver.get_env(); }
+  auto get_env() const noexcept { return miniexec::get_env(parent->receiver); }
 };
 
 template <typename Pred, typename F, typename Receiver>
@@ -70,7 +72,7 @@ struct then_operation {
   Receiver receiver;
 
   then_operation(Pred pred_, F f_, Receiver r)
-      : pred_op(std::move(pred_).connect(receiver_t{this})),
+      : pred_op(miniexec::connect(std::move(pred_), receiver_t{this})),
         f(std::move(f_)),
         receiver(std::move(r)) {}
 
@@ -80,6 +82,7 @@ struct then_operation {
 template <typename Pred, typename F>
 struct then_sender {
   using value_t = typename then_sender_value<F, typename Pred::value_t>::type;
+  using sender_concept = sender_tag;
 
   Pred pred;
   F f;
@@ -103,18 +106,18 @@ struct then_closure : sender_adapter_closure<then_closure<F>> {
 
   explicit then_closure(F f_) : f(std::move(f_)) {}
 
-  template <sender S>
+  template <detail::value_sender S>
   auto operator()(S&& s) && -> then_sender<std::decay_t<S>, F> {
     return then_sender<std::decay_t<S>, F>{std::forward<S>(s), std::move(f)};
   }
 
-  template <sender S>
+  template <detail::value_sender S>
   auto operator()(S&& s) const& -> then_sender<std::decay_t<S>, F> {
     return then_sender<std::decay_t<S>, F>{std::forward<S>(s), f};
   }
 };
 
-template<typename F>
+template <typename F>
 auto then(F&& f) {
   return then_closure<std::decay_t<F>>{std::forward<F>(f)};
 }
