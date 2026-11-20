@@ -99,7 +99,7 @@ struct let_value_operation {
           ::new (static_cast<void*>(storage)) successor_op_t(miniexec::connect(
               std::move(successor_sender), successor_receiver_t{&receiver}));
       active = true;
-      miniexec::start(op);
+      miniexec::start(*op);
     } catch (...) {
       receiver.set_error(std::current_exception());
     }

@@ -1,8 +1,11 @@
+#include <cstdio>
 #include <stop_token>
+#include <string>
 #include <thread>
 #include <utility>
 
 #include "../include/miniexec/execution.hpp"
+
 using namespace std::literals;
 
 int main() {

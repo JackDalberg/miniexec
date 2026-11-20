@@ -28,7 +28,7 @@ class thread_pool {
     auto count = hw > 1 ? hw - 1 : 1;
 
     workers_.reserve(count);
-    for (size_t i = 0; i < count; ++i) {
+    for (std::size_t i = 0; i < count; ++i) {
       workers_.emplace_back(
           [this](std::stop_token stop) { worker_loop(stop); });
     }
@@ -138,9 +138,9 @@ enum class forward_progress_guarantee {
 
 struct get_forward_progress_guarantee_t {
   template <typename Sch>
-    requires requires(const Sch& sch) { sch.get_forward_progress_guaratee(); }
+    requires requires(const Sch& sch) { sch.get_forward_progress_guarantee(); }
   auto operator()(const Sch& sch) const {
-    return sch.get_forward_progress_guaratee();
+    return sch.get_forward_progress_guarantee();
   }
 };
 

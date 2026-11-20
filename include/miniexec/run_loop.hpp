@@ -6,10 +6,11 @@
 #include <mutex>
 #include <queue>
 #include <stop_token>
+#include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include "env.hpp"
-#include "receiver.hpp"
 #include "scheduler.hpp"
 #include "sender.hpp"
 
@@ -86,7 +87,7 @@ class run_loop {
   template <typename Receiver>
   friend struct run_loop_operation;
 
-  void enque(task_t task) {
+  void enqueue(task_t task) {
     {
       std::lock_guard lock(mutex_);
       tasks_.push(std::move(task));
@@ -140,15 +141,15 @@ struct run_loop_operation {
 
   void start() noexcept {
     std::stop_token token;
-    if constexpr (requires { get_env(receiver).get_stop_token(); })
-      token = get_env(receiver).get_stop_token();
+    if constexpr (requires { miniexec::get_env(receiver).get_stop_token(); })
+      token = miniexec::get_env(receiver).get_stop_token();
 
     if (token.stop_requested()) {
       receiver.set_stopped();
       return;
     }
 
-    loop->enque([this, token]() noexcept {
+    loop->enqueue([this, token]() noexcept {
       try {
         if (token.stop_requested()) {
           receiver.set_stopped();

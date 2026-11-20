@@ -5,6 +5,7 @@
 #include <thread>
 #include <tuple>
 #include <type_traits>
+#include <utility>
 
 #include "../include/miniexec/execution.hpp"
 
@@ -20,6 +21,7 @@ void check(bool condition, const char* msg) {
 
 struct stopped_sender {
   using value_t = std::tuple<>;
+  using sender_concept = sender_tag;
 
   template <typename Receiver>
   struct operation {

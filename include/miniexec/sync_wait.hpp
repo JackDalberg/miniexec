@@ -1,7 +1,6 @@
 #pragma once
 
 #include <exception>
-#include <mutex>
 #include <optional>
 #include <stop_token>
 #include <utility>
@@ -66,16 +65,16 @@ struct sync_wait_receiver {
 
 struct sync_wait_t {
   template <detail::value_sender S>
-  auto operator()(S&& s) {
+  auto operator()(S&& s) const {
     using value_t = typename std::remove_cvref_t<S>::value_t;
 
     sync_wait_state<value_t> state;
     std::stop_source source;
     state.token = source.get_token();
 
-    auto op = connect(std::forward<S>(s),
+    auto op = miniexec::connect(std::forward<S>(s),
                       sync_wait_receiver<sync_wait_state<value_t>>{&state});
-    start(op);
+    miniexec::start(op);
     state.loop.run();
 
     if (state.err) std::rethrow_exception(state.err);

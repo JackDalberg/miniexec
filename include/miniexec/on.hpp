@@ -1,6 +1,8 @@
 #pragma once
 
 #include <exception>
+#include <optional>
+#include <tuple>
 #include <utility>
 
 #include "env.hpp"
@@ -15,10 +17,10 @@ namespace detail {
 
 template <scheduler Sch, value_sender Sender>
 auto starts_on(Sch&& sch, Sender&& sender) {
-  return let_value(schedule(std::forward<Sch>(sch)),
-                   [sender = std::forward<Sender>(sender)]() mutable {
-                     return std::move(sender);
-                   });
+  return schedule(std::forward<Sch>(sch)) |
+         let_value([sender = std::forward<Sender>(sender)]() mutable {
+           return std::move(sender);
+         });
 }
 
 template <typename Sender, typename Sch>
@@ -61,10 +63,11 @@ struct continues_on_schedule_receiver {
     } else if (parent->stopped) {
       parent->receiver.set_stopped();
     } else if (parent->value) {
-      std::apply([this](auto&&... as) {
-        parent->receiver.set_value(std::forward<decltype(as)>(as)...);
-      });
-      std::move(*parent->value);
+      std::apply(
+          [this](auto&&... as) {
+            parent->receiver.set_value(std::forward<decltype(as)>(as)...);
+          },
+          std::move(*parent->value));
     } else {
       parent->receiver.set_value();
     }
