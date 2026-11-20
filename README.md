@@ -1,6 +1,6 @@
 # Miniexec
 
-Miniexec is a miniature implementation of std::execution for execution control of structured concurrent programs. The implementation is a mostly good faithed attempt to interpret what is defined by [cppreference.com](https://cppreference.com/cpp/execution) and [c++draft](https://eel.is/c++draft/exec). 
+Miniexec is a miniature implementation of std::execution for execution control of structured concurrent programs. The implementation is a good faithed attempt to interpret what is defined by [cppreference.com](https://cppreference.com/cpp/execution) and [c++draft](https://eel.is/c++draft/exec). 
 
 ## Caveats
 
