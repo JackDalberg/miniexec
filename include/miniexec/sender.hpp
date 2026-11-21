@@ -25,6 +25,10 @@ template <typename S>
 concept value_sender =
     sender<S> && requires { typename std::remove_cvref_t<S>::value_t; };
 
+template <typename S>
+concept error_only_sender =
+    requires { typename std::remove_cvref_t<S>::error_only; };
+
 }  // namespace detail
 
 }  // namespace miniexec

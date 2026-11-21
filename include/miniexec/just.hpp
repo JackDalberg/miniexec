@@ -63,6 +63,7 @@ struct just_error_operator {
 
 struct just_error_sender {
   using value_t = std::tuple<>;
+  using error_only = void;
   using sender_concept = sender_tag;
 
   std::exception_ptr err;
