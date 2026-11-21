@@ -1,26 +1,20 @@
 BUILD_DIR ?= build
-EXAMPLE_FILES := examples/cpp_reference.cpp
-TEST_FILES := tests/main.cpp
+TESTS := $(BUILD_DIR)/miniexec_tests
 
-TESTS := $(BUILD_DIR)/mini_tests
-EXAMPLES := $(BUILD_DIR)/mini_examples
+CXX := g++
+CXXFLAGS := -Iinclude -std=c++26 -g -Wall -Wextra -pthread
 
-.PHONY: test example clean
+HEADERS := $(wildcard include/miniexec/*.hpp)
+TEST_FILES := test/main.cpp test/cpp_ref.cpp
 
-$(BUILD_DIR):
-	mkdir -p $@
-
-$(TESTS): $(BUILD_DIR)
-	g++ -Iinclude -std=c++26 -g -Wall -Wextra -pthread $(TEST_FILES) -o $@
-
-$(EXAMPLES): $(BUILD_DIR)
-	g++ -Iinclude -std=c++26 -g -Wall -Wextra -pthread $(EXAMPLE_FILES) -o $@
+.PHONY: test clean
 
 test: $(TESTS)
 	./$(TESTS)
 
-example: $(EXAMPLES)
-	./$(EXAMPLES)
+$(TESTS): $(TEST_FILES) $(HEADERS)
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) $(TEST_FILES) -o $@
 
 clean:
 	rm -rf $(BUILD_DIR)
